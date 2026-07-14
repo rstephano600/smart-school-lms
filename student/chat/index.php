@@ -49,7 +49,6 @@ $chat_user = null;
 $messages = [];
 
 if ($selected_user > 0) {
-    // Get user info
     $user_query = $conn->prepare("SELECT id, first_name, last_name, role FROM users WHERE id = ?");
     $user_query->bind_param("i", $selected_user);
     $user_query->execute();
@@ -60,7 +59,6 @@ if ($selected_user > 0) {
     $mark_read->bind_param("ii", $selected_user, $_SESSION['user_id']);
     $mark_read->execute();
     
-    // Get messages between student and teacher
     $messages_query = $conn->prepare("
         SELECT * FROM messages 
         WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
@@ -70,13 +68,26 @@ if ($selected_user > 0) {
     $messages_query->execute();
     $messages = $messages_query->get_result();
 }
+
+// Get unread count for badge
+$unread_query = $conn->prepare("SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND is_read = 0");
+$unread_query->bind_param("i", $_SESSION['user_id']);
+$unread_query->execute();
+$unread_notifications = $unread_query->get_result()->fetch_assoc()['count'] ?? 0;
 ?>
 
-<div class="ml-64 mt-16 p-6">
+<div class="ml-64 mt-16 p-6 bg-gray-50 min-h-screen">
     <div class="max-w-6xl mx-auto">
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold text-gray-800">Messages</h1>
-            <p class="text-gray-500 mt-1">Chat with your teachers</p>
+        <div class="mb-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Messages</h1>
+                <p class="text-gray-500 mt-1">Chat with your teachers</p>
+            </div>
+            <?php if($unread_notifications > 0): ?>
+                <a href="../notifications/index.php" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">
+                    <i class="fas fa-bell mr-2"></i> <?php echo $unread_notifications; ?> Notifications
+                </a>
+            <?php endif; ?>
         </div>
 
         <div class="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -88,7 +99,9 @@ if ($selected_user > 0) {
                     </div>
                     <div class="overflow-y-auto h-[540px]">
                         <?php if ($teachers && $teachers->num_rows > 0): ?>
-                            <?php while($teacher = $teachers->fetch_assoc()): ?>
+                            <?php while($teacher = $teachers->fetch_assoc()): 
+                                $unread = $teacher['unread_count'] > 0;
+                            ?>
                                 <a href="?user=<?php echo $teacher['id']; ?>" 
                                    class="block p-3 hover:bg-gray-50 border-b transition-all <?php echo $selected_user == $teacher['id'] ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''; ?>">
                                     <div class="flex items-center space-x-3">
@@ -100,13 +113,17 @@ if ($selected_user > 0) {
                                                 <p class="font-medium text-gray-800 truncate">
                                                     <?php echo htmlspecialchars($teacher['first_name'] . ' ' . $teacher['last_name']); ?>
                                                 </p>
-                                                <?php if($teacher['unread_count'] > 0): ?>
-                                                    <span class="bg-red-500 text-white text-xs rounded-full px-2 py-0.5"><?php echo $teacher['unread_count']; ?></span>
+                                                <?php if($unread): ?>
+                                                    <span class="bg-red-500 text-white text-xs rounded-full px-2 py-0.5">
+                                                        <?php echo $teacher['unread_count']; ?>
+                                                    </span>
                                                 <?php endif; ?>
                                             </div>
                                             <p class="text-xs text-gray-500">Teacher</p>
                                             <?php if($teacher['last_message']): ?>
-                                                <p class="text-xs text-gray-400 truncate"><?php echo htmlspecialchars(substr($teacher['last_message'], 0, 40)); ?></p>
+                                                <p class="text-xs text-gray-400 truncate">
+                                                    <?php echo htmlspecialchars(substr($teacher['last_message'], 0, 40)); ?>
+                                                </p>
                                             <?php endif; ?>
                                         </div>
                                     </div>
@@ -116,7 +133,6 @@ if ($selected_user > 0) {
                             <div class="p-8 text-center text-gray-500">
                                 <i class="fas fa-chalkboard-user text-4xl mb-2 block"></i>
                                 <p>No teachers available</p>
-                                <p class="text-xs mt-1">Teachers will appear here once assigned</p>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -146,14 +162,15 @@ if ($selected_user > 0) {
                             <?php if ($messages && $messages->num_rows > 0): ?>
                                 <?php while($msg = $messages->fetch_assoc()): 
                                     $is_me = $msg['sender_id'] == $_SESSION['user_id'];
+                                    $is_read = $msg['is_read'] == 1;
                                 ?>
                                     <div class="flex <?php echo $is_me ? 'justify-end' : 'justify-start'; ?>">
                                         <div class="max-w-[70%] <?php echo $is_me ? 'bg-blue-500 text-white' : 'bg-white text-gray-800 shadow-sm'; ?> rounded-lg px-4 py-2">
                                             <p class="text-sm"><?php echo nl2br(htmlspecialchars($msg['message'])); ?></p>
                                             <p class="text-xs <?php echo $is_me ? 'text-blue-200' : 'text-gray-400'; ?> mt-1">
                                                 <?php echo date('h:i A', strtotime($msg['created_at'])); ?>
-                                                <?php if($is_me && $msg['is_read']): ?>
-                                                    <i class="fas fa-check-double ml-1"></i>
+                                                <?php if($is_me && $is_read): ?>
+                                                    <i class="fas fa-check-double ml-1 text-green-400"></i>
                                                 <?php elseif($is_me): ?>
                                                     <i class="fas fa-check ml-1"></i>
                                                 <?php endif; ?>
@@ -174,23 +191,22 @@ if ($selected_user > 0) {
 
                         <!-- Message Input -->
                         <div class="p-4 border-t bg-white">
-                            <form id="chatForm" class="flex space-x-2">
-                                <input type="hidden" name="receiver_id" value="<?php echo $selected_user; ?>">
-                                <input type="text" name="message" id="messageInput" 
+                            <div class="flex space-x-2">
+                                <input type="hidden" id="receiver_id" value="<?php echo $selected_user; ?>">
+                                <input type="text" id="messageInput" 
                                        placeholder="Type your message..." 
                                        autocomplete="off"
-                                       class="flex-1 border rounded-full px-5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                                <button type="submit" id="sendBtn" class="bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-all">
+                                       class="flex-1 border rounded-full px-5 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <button id="sendBtn" class="bg-blue-600 text-white px-5 py-2 rounded-full hover:bg-blue-700 transition-all">
                                     <i class="fas fa-paper-plane"></i>
                                 </button>
-                            </form>
+                            </div>
                         </div>
                     <?php else: ?>
                         <div class="flex-1 flex items-center justify-center">
                             <div class="text-center">
                                 <i class="fas fa-comments text-6xl text-gray-300 mb-4"></i>
                                 <p class="text-gray-500">Select a teacher to start chatting</p>
-                                <p class="text-sm text-gray-400 mt-1">Click on any teacher on the left</p>
                             </div>
                         </div>
                     <?php endif; ?>
@@ -200,16 +216,6 @@ if ($selected_user > 0) {
     </div>
 </div>
 
-<style>
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-.animate-fadeIn {
-    animation: fadeIn 0.3s ease-out;
-}
-</style>
-
 <script>
 // Scroll to bottom of messages
 const messagesArea = document.getElementById('messagesArea');
@@ -217,64 +223,115 @@ if (messagesArea) {
     messagesArea.scrollTop = messagesArea.scrollHeight;
 }
 
-// Send message via AJAX
-const chatForm = document.getElementById('chatForm');
-if (chatForm) {
-    chatForm.addEventListener('submit', function(e) {
-        e.preventDefault();
+// Get elements
+const sendBtn = document.getElementById('sendBtn');
+const messageInput = document.getElementById('messageInput');
+const receiverIdInput = document.getElementById('receiver_id');
+
+// Function to send message
+function sendMessage() {
+    // Get message and receiver ID
+    const message = messageInput.value.trim();
+    const receiverId = receiverIdInput ? receiverIdInput.value : '';
+    
+    // Validate
+    if (!message) {
+        alert('Please type a message');
+        return;
+    }
+    
+    if (!receiverId) {
+        alert('No receiver selected');
+        return;
+    }
+    
+    // Disable button
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    
+    // Create form data
+    const formData = new FormData();
+    formData.append('receiver_id', receiverId);
+    formData.append('message', message);
+    
+    // Send using fetch
+    fetch('send.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        return response.text();
+    })
+    .then(text => {
+        console.log('Response:', text);
         
-        const formData = new FormData(this);
-        const messageInput = document.getElementById('messageInput');
-        const message = messageInput.value.trim();
-        const sendBtn = document.getElementById('sendBtn');
+        // Try to parse JSON
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (e) {
+            console.error('JSON parse error:', e);
+            alert('Server error. Please try again.');
+            return;
+        }
         
-        if (!message) return;
-        
-        sendBtn.disabled = true;
-        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        
-        fetch('send.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                const messagesArea = document.getElementById('messagesArea');
-                const newMessage = document.createElement('div');
-                newMessage.className = 'flex justify-end animate-fadeIn';
-                newMessage.innerHTML = `
-                    <div class="max-w-[70%] bg-blue-500 text-white rounded-lg px-4 py-2">
-                        <p class="text-sm">${escapeHtml(message)}</p>
-                        <p class="text-xs text-blue-200 mt-1">Just now <i class="fas fa-check ml-1"></i></p>
-                    </div>
-                `;
-                messagesArea.appendChild(newMessage);
-                messagesArea.scrollTop = messagesArea.scrollHeight;
-                messageInput.value = '';
-                
-                const emptyState = messagesArea.querySelector('.flex.items-center.justify-center');
-                if (emptyState) emptyState.remove();
-            } else {
-                alert('Failed to send message: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to send message');
-        })
-        .finally(() => {
-            sendBtn.disabled = false;
-            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
-        });
+        if (data.success) {
+            // Add message to chat
+            const newMessage = document.createElement('div');
+            newMessage.className = 'flex justify-end animate-fadeIn';
+            newMessage.innerHTML = `
+                <div class="max-w-[70%] bg-blue-500 text-white rounded-lg px-4 py-2">
+                    <p class="text-sm">${escapeHtml(message)}</p>
+                    <p class="text-xs text-blue-200 mt-1">Just now <i class="fas fa-check"></i></p>
+                </div>
+            `;
+            messagesArea.appendChild(newMessage);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+            messageInput.value = '';
+            
+            // Remove empty state
+            const emptyState = messagesArea.querySelector('.flex.items-center.justify-center');
+            if (emptyState) emptyState.remove();
+        } else {
+            alert('Failed to send message: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        alert('Failed to send message. Please try again.');
+    })
+    .finally(() => {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
     });
 }
 
-// Auto-refresh messages every 5 seconds
-let lastMessageId = 0;
-const selectedUser = <?php echo $selected_user ?: 0; ?>;
+// Event listeners
+if (sendBtn) {
+    sendBtn.addEventListener('click', sendMessage);
+}
 
+if (messageInput) {
+    messageInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+}
+
+// Helper function to escape HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Auto-refresh messages every 5 seconds
+const selectedUser = <?php echo $selected_user ?: 0; ?>;
 if (selectedUser) {
+    let lastMessageId = 0;
+    
     function refreshMessages() {
         fetch(`get-messages.php?user=${selectedUser}&last_id=${lastMessageId}`)
             .then(response => response.json())
@@ -300,22 +357,19 @@ if (selectedUser) {
             .catch(error => console.error('Error refreshing messages:', error));
     }
     
+    // Refresh every 5 seconds
     setInterval(refreshMessages, 5000);
 }
-
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-// Press Enter to send
-document.getElementById('messageInput')?.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        document.getElementById('sendBtn')?.click();
-    }
-});
 </script>
+
+<style>
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+    animation: fadeIn 0.3s ease-out;
+}
+</style>
 
 <?php include '../../includes/footer.php'; ?>

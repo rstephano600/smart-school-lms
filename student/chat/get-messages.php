@@ -42,7 +42,7 @@ while ($row = $result->fetch_assoc()) {
     ];
 }
 
-// Mark messages as read
+// Mark messages as read if user is receiver
 if (!empty($messages)) {
     $update = $conn->prepare("
         UPDATE messages SET is_read = 1, read_at = NOW() 

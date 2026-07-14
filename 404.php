@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/config.php';
 $page_title = 'Page Not Found';
 ?>
 <!DOCTYPE html>
@@ -15,7 +16,7 @@ $page_title = 'Page Not Found';
         <div class="text-9xl font-bold mb-4">404</div>
         <div class="text-2xl mb-4">Oops! Page Not Found</div>
         <p class="mb-8">The page you are looking for does not exist or has been moved.</p>
-        <a href="/smart-school-lms/index.php" class="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all">
+        <a href="<?php echo BASE_URL; ?>index.php" class="bg-white text-purple-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-all">
             <i class="fas fa-home mr-2"></i> Back to Home
         </a>
     </div>

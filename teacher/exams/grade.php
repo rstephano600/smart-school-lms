@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             JOIN users u ON s.user_id = u.id
             WHERE s.id = ?
         ");
-        $link = "/smart-school-lms/student/exams/results.php?id=" . $exam['id'];
+        $link = BASE_URL . "student/exams/results.php?id=" . $exam['id'];
         $notify->bind_param("sdddssi", $exam['title'], $total_score, $exam['total_marks'], round($percentage, 1), $grade_info['grade'], $link, $submission['student_id']);
         $notify->execute();
         

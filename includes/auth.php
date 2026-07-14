@@ -1,12 +1,19 @@
 <?php
-// includes/auth.php - Authentication functions
+// =====================================================
+// AUTHENTICATION FUNCTIONS - SMART SCHOOL LMS
+// =====================================================
 
-require_once dirname(__DIR__) . '/config.php';
-
+// Check if user is logged in
 function isLoggedIn() {
     return isset($_SESSION['user_id']);
 }
 
+// Check if user has specific role
+function hasRole($role) {
+    return isset($_SESSION['role']) && $_SESSION['role'] === $role;
+}
+
+// Require login
 function requireLogin() {
     if (!isLoggedIn()) {
         $_SESSION['redirect_after_login'] = $_SERVER['REQUEST_URI'];
@@ -15,18 +22,25 @@ function requireLogin() {
     }
 }
 
-function hasRole($role) {
-    return isset($_SESSION['role']) && $_SESSION['role'] === $role;
-}
-
+// Require specific role
 function requireRole($role) {
     requireLogin();
     if (!hasRole($role)) {
-        http_response_code(403);
-        die("Access Denied! You don't have permission to access this page.");
+        // Redirect to appropriate dashboard based on role
+        $role_map = [
+            'admin' => SITE_URL . 'admin/dashboard.php',
+            'academic' => SITE_URL . 'academic/dashboard.php',
+            'teacher' => SITE_URL . 'teacher/dashboard.php',
+            'student' => SITE_URL . 'student/dashboard.php',
+            'parent' => SITE_URL . 'parent/dashboard.php'
+        ];
+        $redirect = $role_map[$_SESSION['role'] ?? ''] ?? SITE_URL . 'index.php';
+        header('Location: ' . $redirect);
+        exit();
     }
 }
 
+// Get current user
 function getCurrentUser() {
     global $conn;
     if (isLoggedIn()) {
@@ -41,40 +55,97 @@ function getCurrentUser() {
     return null;
 }
 
-function getUserRoleBasedData($user_id, $role) {
-    global $conn;
-    
-    switch($role) {
-        case 'student':
-            $query = "SELECT * FROM students WHERE user_id = ?";
-            break;
-        case 'teacher':
-            $query = "SELECT * FROM teachers WHERE user_id = ?";
-            break;
-        case 'parent':
-            $query = "SELECT * FROM parents WHERE user_id = ?";
-            break;
-        default:
-            return null;
-    }
-    
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    return $result->fetch_assoc();
+// Get user role
+function getUserRole() {
+    return $_SESSION['role'] ?? 'guest';
 }
 
-function logActivity($user_id, $action, $entity_type = null, $entity_id = null) {
+// Get user name
+function getUserName() {
+    return $_SESSION['user_name'] ?? 'User';
+}
+
+// Get user ID
+function getUserId() {
+    return $_SESSION['user_id'] ?? 0;
+}
+
+// Login user
+function loginUser($user) {
+    $_SESSION['user_id'] = $user['id'];
+    $_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
+    $_SESSION['role'] = $user['role'];
+    $_SESSION['email'] = $user['email'];
+    
+    // Update last login
     global $conn;
+    $update = $conn->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+    $update->bind_param("i", $user['id']);
+    $update->execute();
     
-    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    // Log activity - logActivity is in config.php
+    logActivity($user['id'], 'login');
+}
+
+// Logout user
+function logoutUser() {
+    if (isLoggedIn()) {
+        global $conn;
+        logActivity($_SESSION['user_id'], 'logout');
+    }
+    session_destroy();
+    header('Location: ' . SITE_URL . 'index.php');
+    exit();
+}
+
+// Verify password
+function verifyPassword($conn, $user_id, $password) {
+    $query = $conn->prepare("SELECT password FROM users WHERE id = ?");
+    $query->bind_param("i", $user_id);
+    $query->execute();
+    $user = $query->get_result()->fetch_assoc();
     
-    $query = "INSERT INTO activity_logs (user_id, action, entity_type, entity_id, ip_address, user_agent) 
-              VALUES (?, ?, ?, ?, ?, ?)";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("ississ", $user_id, $action, $entity_type, $entity_id, $ip, $user_agent);
-    return $stmt->execute();
+    if (!$user) return false;
+    
+    $stored_hash = $user['password'];
+    
+    // Try password_verify
+    if (password_verify($password, $stored_hash)) {
+        return true;
+    }
+    
+    // If stored is plain text (legacy)
+    if ($password === $stored_hash) {
+        // Re-hash and update
+        $new_hash = password_hash($password, PASSWORD_DEFAULT);
+        $update = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
+        $update->bind_param("si", $new_hash, $user_id);
+        $update->execute();
+        return true;
+    }
+    
+    return false;
+}
+
+// Change password
+function changePassword($conn, $user_id, $current_password, $new_password) {
+    if (!verifyPassword($conn, $user_id, $current_password)) {
+        return ['success' => false, 'error' => 'Current password is incorrect'];
+    }
+    
+    if (strlen($new_password) < 6) {
+        return ['success' => false, 'error' => 'Password must be at least 6 characters'];
+    }
+    
+    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+    $update = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
+    $update->bind_param("si", $hashed_password, $user_id);
+    
+    if ($update->execute()) {
+        logActivity($user_id, 'changed password');
+        return ['success' => true, 'message' => 'Password changed successfully'];
+    }
+    
+    return ['success' => false, 'error' => 'Failed to change password'];
 }
 ?>

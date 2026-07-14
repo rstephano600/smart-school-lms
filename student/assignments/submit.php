@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 FROM assignments WHERE id = ?
             ");
             $notification_title = $assignment['title'];
-            $notification_link = "/smart-school-lms/teacher/assignments/submissions.php?id=" . $assignment_id;
+            $notification_link = BASE_URL . "teacher/assignments/submissions.php?id=" . $assignment_id;
             $teacher_query->bind_param("ssi", $notification_title, $notification_link, $assignment_id);
             $teacher_query->execute();
             

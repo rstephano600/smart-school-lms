@@ -13,10 +13,9 @@ Options -Indexes
 </FilesMatch>
 
 # Custom error pages
-ErrorDocument 404 /smart-school-lms/404.php
-ErrorDocument 403 /smart-school-lms/403.php
+ErrorDocument 404 /404.php
 
-# Force HTTPS (uncomment in production)
+# Force HTTPS (enable only when SSL certificate is active)
 # RewriteCond %{HTTPS} off
 # RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
 

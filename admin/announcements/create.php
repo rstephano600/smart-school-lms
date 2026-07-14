@@ -66,7 +66,7 @@ function createNotificationsForAnnouncement($conn, $announcement_id, $title, $co
     $notification_stmt = $conn->prepare($notification_query);
     
     while ($user = $users->fetch_assoc()) {
-        $link = "/smart-school-lms/announcements/view.php?id=" . $announcement_id;
+        $link = BASE_URL . "announcements/view.php?id=" . $announcement_id;
         $notification_stmt->bind_param("isss", $user['id'], $title, $content, $link);
         $notification_stmt->execute();
     }

@@ -113,19 +113,28 @@ include '../../includes/sidebar.php';
 include '../../includes/navbar.php';
 ?>
 
-<div class="ml-64 mt-16 p-6">
+<div class="ml-64 mt-16 p-6 bg-gray-50 min-h-screen">
     <div class="max-w-3xl mx-auto">
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold text-gray-800">Edit Examination</h1>
-            <p class="text-gray-500 mt-1">Update exam settings</p>
+        <div class="mb-6 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">✏️ Edit Examination</h1>
+                <p class="text-gray-500 mt-1">Update exam settings</p>
+            </div>
+            <a href="index.php" class="text-blue-600 hover:text-blue-800">
+                <i class="fas fa-arrow-left mr-2"></i> Back
+            </a>
         </div>
 
         <?php if($error): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"><?php echo $error; ?></div>
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+                <i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error; ?>
+            </div>
         <?php endif; ?>
         
         <?php if($success): ?>
-            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4"><?php echo $success; ?></div>
+            <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg mb-4">
+                <i class="fas fa-check-circle mr-2"></i> <?php echo $success; ?>
+            </div>
         <?php endif; ?>
 
         <div class="bg-white rounded-xl shadow-sm p-6">
@@ -275,11 +284,13 @@ include '../../includes/navbar.php';
                 </div>
 
                 <div class="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                    <a href="index.php" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</a>
+                    <a href="index.php" class="px-4 py-2 border rounded-lg hover:bg-gray-50">
+                        <i class="fas fa-times mr-2"></i> Cancel
+                    </a>
                     <a href="questions.php?id=<?php echo $exam_id; ?>" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
                         <i class="fas fa-question-circle mr-2"></i> Manage Questions
                     </a>
-                    <button type="submit" class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:shadow-lg">
+                    <button type="submit" class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:shadow-lg transition">
                         <i class="fas fa-save mr-2"></i> Save Changes
                     </button>
                 </div>

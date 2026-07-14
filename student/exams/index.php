@@ -4,7 +4,7 @@ require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 requireRole('student');
 
-$page_title = 'Online Exams & Quizzes';
+$page_title = 'My Exams';
 include '../../includes/header.php';
 include '../../includes/sidebar.php';
 include '../../includes/navbar.php';
@@ -19,39 +19,104 @@ $student_query = $conn->prepare("
 $student_query->bind_param("i", $_SESSION['user_id']);
 $student_query->execute();
 $student = $student_query->get_result()->fetch_assoc();
+
+if (!$student) {
+    echo "<div class='ml-64 mt-16 p-6'><div class='alert alert-danger'>Student record not found!</div></div>";
+    include '../../includes/footer.php';
+    exit();
+}
+
 $student_id = $student['id'];
 $class_id = $student['class_id'];
 
-// Get all published exams for this student's class
+// Get exams for this student's class
 $exams = $conn->prepare("
     SELECT te.*, s.name as subject_name,
            (SELECT COUNT(*) FROM exam_questions WHERE exam_id = te.id) as total_questions,
-           (SELECT COUNT(*) FROM exam_submissions WHERE exam_id = te.id AND student_id = ?) as has_submitted,
-           (SELECT grade FROM exam_submissions WHERE exam_id = te.id AND student_id = ? ORDER BY id DESC LIMIT 1) as grade,
-           (SELECT percentage FROM exam_submissions WHERE exam_id = te.id AND student_id = ? ORDER BY id DESC LIMIT 1) as percentage
+           (SELECT id FROM exam_submissions WHERE exam_id = te.id AND student_id = ?) as submission_id,
+           (SELECT submitted_at FROM exam_submissions WHERE exam_id = te.id AND student_id = ?) as submitted_at,
+           (SELECT percentage FROM exam_submissions WHERE exam_id = te.id AND student_id = ?) as percentage
     FROM teacher_exams te
     JOIN subjects s ON te.subject_id = s.id
-    WHERE te.class_id = ? AND te.is_published = 1
-    ORDER BY te.start_date ASC
+    WHERE te.class_id = ? 
+    AND te.is_published = 1
+    ORDER BY te.start_date ASC, te.created_at DESC
 ");
 $exams->bind_param("iiii", $student_id, $student_id, $student_id, $class_id);
 $exams->execute();
 $exams = $exams->get_result();
+
+// Get exam statistics
+$total_exams = $exams->num_rows;
+$completed = 0;
+$pending = 0;
+
+$exams->data_seek(0);
+while ($exam = $exams->fetch_assoc()) {
+    if ($exam['submission_id']) {
+        $completed++;
+    } else {
+        $pending++;
+    }
+}
+$exams->data_seek(0);
 ?>
 
-<div class="ml-64 mt-16 p-6 bg-gray-50 min-h-screen">
-    <div class="max-w-full mx-auto">
-        <div class="mb-6">
-            <h1 class="text-2xl font-bold text-gray-800">Online Exams & Quizzes</h1>
-            <p class="text-gray-500 mt-1">Take your online examinations and quizzes</p>
-        </div>
+<style>
+.exam-card {
+    transition: all 0.3s ease;
+}
+.exam-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+}
+.status-badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+}
+.status-upcoming {
+    background: #dbeafe;
+    color: #1e40af;
+}
+.status-active {
+    background: #d1fae5;
+    color: #065f46;
+}
+.status-completed {
+    background: #fef3c7;
+    color: #92400e;
+}
+.status-published {
+    background: #d1fae5;
+    color: #065f46;
+}
+.status-draft {
+    background: #fee2e2;
+    color: #991b1b;
+}
+</style>
 
-        <!-- Categories Tabs -->
-        <div class="flex flex-wrap gap-2 mb-6">
-            <button class="tab-btn active px-4 py-2 bg-blue-600 text-white rounded-lg" data-type="all">All Exams</button>
-            <button class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300" data-type="upcoming">Upcoming</button>
-            <button class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300" data-type="ongoing">Ongoing</button>
-            <button class="tab-btn px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300" data-type="completed">Completed</button>
+<div class="ml-64 mt-16 p-6 bg-gray-50 min-h-screen">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">📝 My Exams</h1>
+            <p class="text-gray-500 mt-1">View and take your assigned exams</p>
+            <div class="mt-3 flex flex-wrap gap-3">
+                <div class="bg-white rounded-xl px-4 py-2 shadow-sm">
+                    <span class="text-sm text-gray-500">Total Exams</span>
+                    <span class="ml-2 font-bold text-blue-600"><?php echo $total_exams; ?></span>
+                </div>
+                <div class="bg-white rounded-xl px-4 py-2 shadow-sm">
+                    <span class="text-sm text-gray-500">Completed</span>
+                    <span class="ml-2 font-bold text-green-600"><?php echo $completed; ?></span>
+                </div>
+                <div class="bg-white rounded-xl px-4 py-2 shadow-sm">
+                    <span class="text-sm text-gray-500">Pending</span>
+                    <span class="ml-2 font-bold text-yellow-600"><?php echo $pending; ?></span>
+                </div>
+            </div>
         </div>
 
         <!-- Exams Grid -->
@@ -59,92 +124,101 @@ $exams = $exams->get_result();
             <?php if ($exams && $exams->num_rows > 0): ?>
                 <?php while($exam = $exams->fetch_assoc()): 
                     $today = date('Y-m-d');
-                    $can_take = false;
-                    $status_text = '';
-                    $status_color = '';
-                    $status_icon = '';
-                    
-                    // Check if already submitted
-                    $has_submitted = $exam['has_submitted'] > 0;
+                    $is_submitted = $exam['submission_id'] ? true : false;
                     
                     // Determine exam status
-                    if ($exam['end_date'] < $today) {
-                        $status_text = 'Closed';
-                        $status_color = 'bg-gray-100 text-gray-700';
-                        $status_icon = 'fa-lock';
-                        $can_take = false;
+                    if ($is_submitted) {
+                        $status = 'Completed';
+                        $status_class = 'status-completed';
+                        $status_icon = '✅';
                     } elseif ($exam['start_date'] > $today) {
-                        $status_text = 'Upcoming';
-                        $status_color = 'bg-blue-100 text-blue-700';
-                        $status_icon = 'fa-clock';
-                        $can_take = false;
-                    } elseif ($has_submitted) {
-                        $status_text = 'Completed';
-                        $status_color = 'bg-purple-100 text-purple-700';
-                        $status_icon = 'fa-check-circle';
-                        $can_take = false;
+                        $status = 'Upcoming';
+                        $status_class = 'status-upcoming';
+                        $status_icon = '⏳';
                     } else {
-                        $status_text = 'Available';
-                        $status_color = 'bg-green-100 text-green-700';
-                        $status_icon = 'fa-play-circle';
-                        $can_take = true;
+                        $status = 'Active';
+                        $status_class = 'status-active';
+                        $status_icon = '🟢';
                     }
+                    
+                    $can_take = !$is_submitted && $exam['start_date'] <= $today && $exam['end_date'] >= $today;
+                    $is_expired = $exam['end_date'] < $today;
                 ?>
-                    <div class="exam-card bg-white rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden" data-status="<?php echo strtolower($status_text); ?>">
-                        <div class="h-2 <?php echo $exam['exam_type'] == 'quiz' ? 'bg-purple-500' : 'bg-red-500'; ?>"></div>
-                        <div class="p-5">
+                    <div class="exam-card bg-white rounded-xl shadow-sm overflow-hidden">
+                        <!-- Card Header -->
+                        <div class="p-4 border-b">
                             <div class="flex justify-between items-start">
                                 <div>
-                                    <span class="px-2 py-1 text-xs rounded-full <?php echo $status_color; ?>">
-                                        <i class="fas <?php echo $status_icon; ?> mr-1"></i> <?php echo $status_text; ?>
-                                    </span>
-                                    <span class="ml-2 px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">
-                                        <?php echo ucfirst($exam['exam_type']); ?>
-                                    </span>
+                                    <h3 class="font-bold text-gray-800"><?php echo htmlspecialchars($exam['title']); ?></h3>
+                                    <p class="text-sm text-gray-500"><?php echo htmlspecialchars($exam['subject_name']); ?></p>
                                 </div>
-                                <div class="text-right">
-                                    <p class="text-xs text-gray-400">Duration</p>
-                                    <p class="text-sm font-semibold"><?php echo $exam['duration_minutes']; ?> min</p>
-                                </div>
+                                <span class="status-badge <?php echo $status_class; ?>">
+                                    <?php echo $status_icon; ?> <?php echo $status; ?>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <!-- Card Body -->
+                        <div class="p-4 space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Questions:</span>
+                                <span class="font-medium"><?php echo $exam['total_questions'] ?? 0; ?></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Total Marks:</span>
+                                <span class="font-medium"><?php echo $exam['total_marks']; ?></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Duration:</span>
+                                <span class="font-medium"><?php echo $exam['duration_minutes']; ?> minutes</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">Start:</span>
+                                <span class="font-medium"><?php echo date('M d, Y', strtotime($exam['start_date'])); ?></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-500">End:</span>
+                                <span class="font-medium"><?php echo date('M d, Y', strtotime($exam['end_date'])); ?></span>
                             </div>
                             
-                            <h3 class="text-lg font-bold text-gray-800 mt-3"><?php echo htmlspecialchars($exam['title']); ?></h3>
-                            <p class="text-sm text-gray-500 mt-1"><?php echo htmlspecialchars($exam['subject_name']); ?></p>
-                            
-                            <div class="mt-3 space-y-2">
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-500">Questions:</span>
-                                    <span class="font-semibold"><?php echo $exam['total_questions'] ?? 0; ?></span>
+                            <?php if($is_submitted && $exam['percentage'] !== null): ?>
+                                <div class="mt-2 pt-2 border-t">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-500">Score:</span>
+                                        <span class="font-bold <?php echo $exam['percentage'] >= 75 ? 'text-green-600' : 'text-red-600'; ?>">
+                                            <?php echo round($exam['percentage'], 1); ?>%
+                                        </span>
+                                    </div>
                                 </div>
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-500">Total Marks:</span>
-                                    <span class="font-semibold"><?php echo $exam['total_marks']; ?></span>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <!-- Card Footer -->
+                        <div class="p-4 border-t bg-gray-50">
+                            <?php if($is_submitted): ?>
+                                <a href="results.php?id=<?php echo $exam['id']; ?>" 
+                                   class="block text-center bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                                    <i class="fas fa-eye mr-2"></i> View Results
+                                </a>
+                            <?php elseif($is_expired): ?>
+                                <div class="text-center text-gray-400 text-sm py-2">
+                                    <i class="fas fa-clock mr-2"></i> Exam Expired
                                 </div>
-                                <div class="flex justify-between text-sm">
-                                    <span class="text-gray-500">Date:</span>
-                                    <span class="font-semibold <?php echo $exam['end_date'] < $today ? 'text-red-600' : 'text-gray-600'; ?>">
-                                        <?php echo date('M d, Y', strtotime($exam['start_date'])); ?>
-                                    </span>
+                            <?php elseif($can_take): ?>
+                                <!-- ✅ FIX: Correct link to take exam -->
+                                <a href="take.php?id=<?php echo $exam['id']; ?>" 
+                                   class="block text-center bg-gradient-to-r from-green-500 to-teal-600 text-white px-4 py-2 rounded-lg hover:shadow-lg transition">
+                                    <i class="fas fa-play mr-2"></i> Start Exam
+                                </a>
+                            <?php elseif($exam['start_date'] > $today): ?>
+                                <div class="text-center text-blue-600 text-sm py-2">
+                                    <i class="fas fa-clock mr-2"></i> Starts <?php echo date('M d', strtotime($exam['start_date'])); ?>
                                 </div>
-                            </div>
-                            
-                            <div class="mt-4">
-                                <?php if ($can_take): ?>
-                                    <a href="instructions.php?id=<?php echo $exam['id']; ?>" 
-                                       class="block text-center bg-gradient-to-r from-blue-500 to-purple-600 text-white py-2 rounded-lg hover:shadow-lg transition-all">
-                                        <i class="fas fa-play mr-2"></i> Start Exam
-                                    </a>
-                                <?php elseif ($has_submitted): ?>
-                                    <a href="results.php?id=<?php echo $exam['id']; ?>" 
-                                       class="block text-center bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 transition-all">
-                                        <i class="fas fa-chart-line mr-2"></i> View Results (<?php echo $exam['grade']; ?> - <?php echo round($exam['percentage'], 1); ?>%)
-                                    </a>
-                                <?php else: ?>
-                                    <button disabled class="block text-center bg-gray-300 text-gray-500 py-2 rounded-lg cursor-not-allowed">
-                                        <i class="fas fa-lock mr-2"></i> <?php echo $status_text == 'Upcoming' ? 'Coming Soon' : 'Not Available'; ?>
-                                    </button>
-                                <?php endif; ?>
-                            </div>
+                            <?php else: ?>
+                                <div class="text-center text-gray-400 text-sm py-2">
+                                    <i class="fas fa-hourglass-end mr-2"></i> Not Available
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endwhile; ?>
@@ -153,39 +227,12 @@ $exams = $exams->get_result();
                     <div class="bg-white rounded-xl shadow-sm p-12 text-center">
                         <i class="fas fa-pen-alt text-6xl text-gray-300 mb-4"></i>
                         <h3 class="text-xl font-semibold text-gray-600">No Exams Available</h3>
-                        <p class="text-gray-400 mt-2">There are no exams or quizzes assigned to you at the moment</p>
+                        <p class="text-gray-400 mt-2">Your teacher hasn't assigned any exams to your class yet.</p>
                     </div>
                 </div>
             <?php endif; ?>
         </div>
     </div>
 </div>
-
-<script>
-// Tab filtering
-document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-        const type = this.dataset.type;
-        
-        // Update active button style
-        document.querySelectorAll('.tab-btn').forEach(b => {
-            b.classList.remove('active', 'bg-blue-600', 'text-white');
-            b.classList.add('bg-gray-200', 'text-gray-700');
-        });
-        this.classList.add('active', 'bg-blue-600', 'text-white');
-        this.classList.remove('bg-gray-200', 'text-gray-700');
-        
-        // Filter exams
-        document.querySelectorAll('.exam-card').forEach(card => {
-            const status = card.dataset.status;
-            if (type === 'all' || status === type) {
-                card.style.display = 'block';
-            } else {
-                card.style.display = 'none';
-            }
-        });
-    });
-});
-</script>
 
 <?php include '../../includes/footer.php'; ?>

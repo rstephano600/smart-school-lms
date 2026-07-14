@@ -109,7 +109,7 @@ function createAssignmentNotifications($conn, $assignment_id, $class_id, $title,
         JOIN users u ON s.user_id = u.id
         WHERE s.class_id = ?
     ");
-    $link = "/smart-school-lms/student/assignments/view.php?id=" . $assignment_id;
+    $link = BASE_URL . "student/assignments/view.php?id=" . $assignment_id;
     $notify->bind_param("sssi", $title, $due_date, $link, $class_id);
     $notify->execute();
 }

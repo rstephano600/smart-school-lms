@@ -4,7 +4,7 @@ require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 requireRole('teacher');
 
-$page_title = 'Create Exam';
+$page_title = 'Create Examination';
 include '../../includes/header.php';
 include '../../includes/sidebar.php';
 include '../../includes/navbar.php';
@@ -80,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($insert->execute()) {
         $exam_id = $conn->insert_id;
         logActivity($_SESSION['user_id'], 'created exam', 'teacher_exams', $exam_id);
-        $success = "Exam created successfully! Now add questions.";
         header("Location: questions.php?id=$exam_id&success=1");
         exit();
     } else {
@@ -89,27 +88,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 
-<div class="ml-64 mt-16 p-6">
-    <div class="max-w-3xl mx-auto">
+<div class="ml-64 mt-16 p-6 bg-gray-50 min-h-screen">
+    <div class="max-w-4xl mx-auto">
         <div class="mb-6">
             <h1 class="text-2xl font-bold text-gray-800">Create Examination</h1>
             <p class="text-gray-500 mt-1">Set up a new exam with full configuration</p>
         </div>
 
         <?php if($error): ?>
-            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4"><?php echo $error; ?></div>
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg mb-4">
+                <i class="fas fa-exclamation-circle mr-2"></i> <?php echo $error; ?>
+            </div>
         <?php endif; ?>
 
         <div class="bg-white rounded-xl shadow-sm p-6">
             <form method="POST" enctype="multipart/form-data">
                 <!-- Basic Information -->
                 <div class="border-b pb-4 mb-4">
-                    <h3 class="text-lg font-semibold mb-4">Basic Information</h3>
+                    <h3 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fas fa-info-circle text-blue-500 mr-2"></i> Basic Information
+                    </h3>
                     <div class="grid grid-cols-2 gap-4">
                         <div class="col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Exam Title *</label>
                             <input type="text" name="title" required value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>"
-                                   class="w-full border rounded-lg px-3 py-2">
+                                   placeholder="e.g., Mid-Term Mathematics, Biology Quiz"
+                                   class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Subject *</label>
@@ -137,11 +141,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Exam Type</label>
                             <select name="exam_type" class="w-full border rounded-lg px-3 py-2">
-                                <option value="quiz">Quiz</option>
-                                <option value="midterm">Midterm</option>
-                                <option value="monthly">Monthly Test</option>
-                                <option value="final">Final Exam</option>
-                                <option value="mock">Mock Exam</option>
+                                <option value="quiz">📝 Quiz</option>
+                                <option value="midterm">📚 Midterm</option>
+                                <option value="monthly">📊 Monthly Test</option>
+                                <option value="final">🎯 Final Exam</option>
+                                <option value="mock">📋 Mock Exam</option>
                             </select>
                         </div>
                         <div>
@@ -162,37 +166,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea name="description" rows="3" class="w-full border rounded-lg px-3 py-2"><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
+                            <textarea name="description" rows="3" class="w-full border rounded-lg px-3 py-2" placeholder="Brief description of the exam..."><?php echo htmlspecialchars($_POST['description'] ?? ''); ?></textarea>
                         </div>
                         <div class="col-span-2">
                             <label class="block text-sm font-medium text-gray-700 mb-1">Instructions for Students</label>
-                            <textarea name="instructions" rows="3" class="w-full border rounded-lg px-3 py-2" placeholder="Exam rules, allowed materials, etc."><?php echo htmlspecialchars($_POST['instructions'] ?? ''); ?></textarea>
+                            <textarea name="instructions" rows="3" class="w-full border rounded-lg px-3 py-2" placeholder="Exam rules, allowed materials, time management tips..."><?php echo htmlspecialchars($_POST['instructions'] ?? ''); ?></textarea>
                         </div>
                     </div>
                 </div>
 
                 <!-- Marking Settings -->
                 <div class="border-b pb-4 mb-4">
-                    <h3 class="text-lg font-semibold mb-4">Marking & Grading</h3>
+                    <h3 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fas fa-star text-yellow-500 mr-2"></i> Marking & Grading
+                    </h3>
                     <div class="grid grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Total Marks</label>
-                            <input type="number" name="total_marks" value="<?php echo $_POST['total_marks'] ?? 100; ?>" class="w-full border rounded-lg px-3 py-2">
+                            <input type="number" name="total_marks" value="<?php echo $_POST['total_marks'] ?? 100; ?>" min="1" class="w-full border rounded-lg px-3 py-2">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Passing Marks</label>
-                            <input type="number" name="passing_marks" value="<?php echo $_POST['passing_marks'] ?? 40; ?>" class="w-full border rounded-lg px-3 py-2">
+                            <input type="number" name="passing_marks" value="<?php echo $_POST['passing_marks'] ?? 40; ?>" min="0" class="w-full border rounded-lg px-3 py-2">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Duration (minutes)</label>
-                            <input type="number" name="duration_minutes" value="<?php echo $_POST['duration_minutes'] ?? 60; ?>" class="w-full border rounded-lg px-3 py-2">
+                            <input type="number" name="duration_minutes" value="<?php echo $_POST['duration_minutes'] ?? 60; ?>" min="1" class="w-full border rounded-lg px-3 py-2">
                         </div>
                     </div>
                 </div>
 
                 <!-- Scheduling -->
                 <div class="border-b pb-4 mb-4">
-                    <h3 class="text-lg font-semibold mb-4">Exam Schedule</h3>
+                    <h3 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fas fa-calendar-alt text-green-500 mr-2"></i> Exam Schedule
+                    </h3>
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
@@ -225,7 +233,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <!-- Security Settings -->
                 <div class="border-b pb-4 mb-4">
-                    <h3 class="text-lg font-semibold mb-4">Security & Anti-Cheating</h3>
+                    <h3 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fas fa-shield-alt text-red-500 mr-2"></i> Security & Anti-Cheating
+                    </h3>
                     <div class="grid grid-cols-2 gap-4">
                         <label class="flex items-center">
                             <input type="checkbox" name="randomize_questions" class="rounded">
@@ -264,8 +274,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="flex justify-end space-x-3 mt-6 pt-4 border-t">
-                    <a href="index.php" class="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</a>
-                    <button type="submit" class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:shadow-lg">
+                    <a href="index.php" class="px-4 py-2 border rounded-lg hover:bg-gray-50">
+                        <i class="fas fa-arrow-left mr-2"></i> Cancel
+                    </a>
+                    <button type="submit" class="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all">
                         <i class="fas fa-save mr-2"></i> Create Exam & Add Questions
                     </button>
                 </div>

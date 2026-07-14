@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 JOIN users u ON s.user_id = u.id
                 WHERE s.id = ?
             ");
-            $link = "/smart-school-lms/student/assignments/view.php?id=" . $assignment_id;
+            $link = BASE_URL . "student/assignments/view.php?id=" . $assignment_id;
             $notify->bind_param("sdiiss", $submission['assignment_title'], $marks, $submission['max_marks'], $grade, $link, $submission['student_id']);
             $notify->execute();
             
